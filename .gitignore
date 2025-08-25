@@ -1,0 +1,42 @@
+# =====================
+# Go build artifacts
+# =====================
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go workspace
+bin/
+pkg/
+*.log
+
+# Go coverage
+*.cover
+*.coverprofile
+*.prof
+*.profraw
+
+# Dependency directories (se usi vendoring)
+vendor/
+
+# =====================
+# JetBrains IDE (GoLand)
+# =====================
+.idea/
+*.iml
+
+# User-specific stuff
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# =====================
+# OS generated files
+# =====================
+ehthumbs.db
+Icon?
