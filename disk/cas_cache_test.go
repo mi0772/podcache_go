@@ -20,7 +20,6 @@ func newTestCache(t *testing.T) *Cache {
 		t.Fatal("NewCache() returned nil")
 	}
 
-	// aggiorna basePath per sicurezza
 	c.basePath = filepath.Join(base)
 	return c
 }

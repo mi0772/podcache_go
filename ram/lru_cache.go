@@ -20,8 +20,8 @@ type Cache[T any] struct {
 	Head            *Node[T]
 	Tail            *Node[T]
 	buckets         map[string]*Node[T]
-	maxCapacity     uint64
-	currentCapacity uint64
+	MaxCapacity     uint64
+	CurrentCapacity uint64
 	mutex           sync.RWMutex
 }
 
@@ -39,8 +39,8 @@ func New[T any](maxCapacity uint64) *Cache[T] {
 		Head:            nil,
 		Tail:            nil,
 		buckets:         buckets,
-		maxCapacity:     maxCapacity,
-		currentCapacity: 0,
+		MaxCapacity:     maxCapacity,
+		CurrentCapacity: 0,
 		mutex:           sync.RWMutex{},
 	}
 }
@@ -87,7 +87,7 @@ func (c *Cache[T]) Evict(key string) bool {
 	}
 
 	delete(c.buckets, key)
-	c.currentCapacity -= v.ValueSize
+	c.CurrentCapacity -= v.ValueSize
 	return true
 }
 
@@ -98,19 +98,19 @@ func (c *Cache[T]) Put(key string, value T, valueSize uint64) error {
 	v, ok := c.buckets[key]
 	if ok {
 		// Elemento esistente - controlla se il nuovo size è accettabile
-		newCapacity := c.currentCapacity - v.ValueSize + valueSize
-		if newCapacity > c.maxCapacity {
+		newCapacity := c.CurrentCapacity - v.ValueSize + valueSize
+		if newCapacity > c.MaxCapacity {
 			return ErrMemoryFull
 		}
 
-		c.currentCapacity = newCapacity
+		c.CurrentCapacity = newCapacity
 		v.InsertionTime = time.Now()
 		v.Value = value
 		v.ValueSize = valueSize
 		c.moveToHead(v)
 	} else {
 		// Elemento nuovo - controlla se c'è spazio
-		if c.currentCapacity+valueSize > c.maxCapacity {
+		if c.CurrentCapacity+valueSize > c.MaxCapacity {
 			return ErrMemoryFull
 		}
 
@@ -123,7 +123,7 @@ func (c *Cache[T]) Put(key string, value T, valueSize uint64) error {
 			Previous:      nil,
 		}
 		c.buckets[key] = v
-		c.currentCapacity += valueSize
+		c.CurrentCapacity += valueSize
 		c.addToHead(v)
 	}
 	return nil
