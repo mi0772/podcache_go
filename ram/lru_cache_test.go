@@ -1,4 +1,4 @@
-package lru
+package ram
 
 import (
 	"crypto/rand"

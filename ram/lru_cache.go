@@ -1,4 +1,4 @@
-package lru
+package ram
 
 import (
 	"errors"
@@ -30,7 +30,7 @@ var (
 )
 
 func New[T any](maxCapacity uint64) *Cache[T] {
-	log.Printf("creating lru cache with max capacity %d", maxCapacity)
+	log.Printf("creating ram cache with max capacity %d", maxCapacity)
 	bucketsSize := estimateBucketSize(maxCapacity)
 	buckets := make(map[string]*Node[T], bucketsSize)
 	log.Printf("esimated bucket size %d ", bucketsSize)
