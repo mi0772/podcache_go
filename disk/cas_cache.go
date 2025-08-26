@@ -19,7 +19,7 @@ func NewCache() *Cache {
 	//creo la directory di base, con un hash casuale di 8 bytes
 	bpath, ok := os.LookupEnv("CAS_BASE_PATH")
 	if !ok {
-		panic("CAS_BASE_PATH environment variable not set")
+		bpath = ".cas"
 	}
 
 	finalPath, err := createBasePath(bpath)

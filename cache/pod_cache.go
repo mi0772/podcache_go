@@ -1,4 +1,4 @@
-package main
+package cache
 
 import (
 	"errors"
@@ -61,7 +61,6 @@ func (c *PodCache) Put(key string, value []byte) error {
 			sentinelError = nil
 		}
 	}
-
 	return nil
 }
 
