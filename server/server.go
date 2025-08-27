@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"mi0772/podcache/cache"
 	"mi0772/podcache/resp"
 	"net"
@@ -36,17 +37,18 @@ func NewPodCacheServer(cache *cache.PodCache) *PodCacheServer {
 }
 
 func (s *PodCacheServer) Start(ctx context.Context) error {
-	fmt.Println("Starting PodCache TCP Server... (GO Version)")
+	slog.Info("TCP Server", "phase", "starting")
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", s.port))
 	if err != nil {
-		return fmt.Errorf("failed to start server: %w", err)
+		slog.Error("TCP Server", "phase", "starting", "err", err)
+		log.Fatal("failed to start server")
 	}
 	defer listener.Close()
 
 	s.running = true
-	fmt.Printf("podcache server started on port %d\n", s.port)
 
+	slog.Info("TCP Server", "phase", "started", "port", s.port)
 	// Graceful shutdown
 	go func() {
 		<-ctx.Done()
@@ -298,10 +300,11 @@ func (c *Client) sendNullBulkString() error {
 
 func getPort() int {
 	if portStr, exists := os.LookupEnv("PODCACHE_PORT"); exists {
-		fmt.Printf("PODCACHE_PORT found in environment: %s\n", portStr)
+		slog.Debug("PODCACHE_PORT found in environment: %s\n", portStr)
 		port, err := strconv.Atoi(portStr)
 		if err != nil {
-			log.Fatalf("PODCACHE_PORT must be a valid number: %v", err)
+			slog.Error("PODCACHE_PORT must be a valid number: %v", err)
+			os.Exit(1)
 		}
 		return port
 	}

@@ -2,7 +2,6 @@ package ram
 
 import (
 	"errors"
-	"log"
 	"sync"
 	"time"
 )
@@ -30,10 +29,8 @@ var (
 )
 
 func New[T any](maxCapacity uint64) *Cache[T] {
-	log.Printf("creating ram cache with max capacity %d", maxCapacity)
 	bucketsSize := 100
 	buckets := make(map[string]*Node[T], bucketsSize)
-	log.Printf("esimated bucket size %d ", bucketsSize)
 
 	return &Cache[T]{
 		Head:            nil,

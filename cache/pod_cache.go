@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"log/slog"
 	"mi0772/podcache/disk"
 	"mi0772/podcache/hash"
 	"mi0772/podcache/ram"
@@ -66,6 +67,7 @@ func NewPodCache(partitions uint8, capacity uint64) (*PodCache, error) {
 			panic("ram.New() returned nil")
 		}
 	}
+	slog.Info("Creating Cache", "partitions number", partitions, "partition capacity", capacity)
 
 	dc := disk.NewCache()
 

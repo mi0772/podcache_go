@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 	"mi0772/podcache/cache"
-	"mi0772/podcache/logger"
 	"mi0772/podcache/server"
 	"os"
 	"os/signal"
@@ -31,9 +31,7 @@ type CacheConfiguration struct {
 
 func main() {
 
-	logger.LogLevel = logger.LOG_INFO
-	logger.Write(logger.LOG_INFO, "Podcache GO Version starting up...")
-
+	slog.Info("Welcome to PodCache")
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -66,7 +64,7 @@ func main() {
 }
 
 func setupTickerCacheStatistics() {
-	ticker = time.NewTicker(60 * time.Second)
+	ticker = time.NewTicker(6 * time.Second)
 	done := make(chan bool)
 
 	go func() {
@@ -76,29 +74,18 @@ func setupTickerCacheStatistics() {
 				return
 			case _ = <-ticker.C:
 				if podcache != nil {
-					log.Printf("*** CACHE STATS ***")
 					var stat = podcache.Stats()
 
-					log.Printf("* Capacity : %d", stat.Capacity)
-					log.Printf("* Used : %d", stat.Used)
-					log.Printf("* Free : %d", stat.Free)
-					log.Printf(" * Disk cache entries : %d", stat.Disk.Entries)
-					log.Printf(" * Disk cache used : %d", stat.Disk.Used)
+					slog.Info("cache statistics (general)", "capacity", stat.Capacity, "Used", stat.Used, "Free", stat.Free)
+					slog.Info("cache statistics (disk)", "entries count", stat.Disk.Entries, "Used", stat.Disk.Used)
+
 					for i, p := range stat.Partitions {
-						log.Printf("* Partition %d", i)
-						log.Printf("  * Capacity : %d", p.Capacity)
-						log.Printf("  * Used : %d", p.Used)
-						log.Printf("  * Free : %d", p.Free)
-						log.Printf("  * Entries : %d", p.Entries)
+						slog.Info("partition statistics", "partition number", i, "capacity", p.Capacity, "used", p.Used, "free", p.Free, "entries", p.Entries)
 					}
-					log.Printf("*** END CACHE STATS ***")
-
 				}
-
 			}
 		}
 	}()
-
 }
 
 func setupGracefulShutdown(cancel context.CancelFunc) {
@@ -169,28 +156,22 @@ func readEnvUint64(key string, defaultValue uint64) (uint64, error) {
 }
 
 func displayConfiguration(config *CacheConfiguration) {
-	fmt.Println("\nCache Configuration:")
-	fmt.Printf("  • Partitions: %d\n", config.partition)
-	fmt.Printf("  • Capacity: %d MB (%d bytes)\n",
-		config.capacity/(1024*1024), config.capacity)
-	fmt.Println()
+	slog.Info("Cache Configuration",
+		"partitions", config.partition,
+		"capacity_mb", config.capacity/(1024*1024),
+		"capacity_bytes", config.capacity,
+	)
 }
 
 func initializeCache(config *CacheConfiguration) (*cache.PodCache, error) {
-	fmt.Println("Initializing cache layer...")
-
 	cache, err := cache.NewPodCache(config.partition, config.capacity)
 	if err != nil {
 		return nil, err
 	}
-
-	fmt.Println("Cache layer created successfully")
 	return cache, nil
 }
 
 func startServer(ctx context.Context, cache *cache.PodCache) error {
-	fmt.Println("Starting PodCache server...")
-
 	server := server.NewPodCacheServer(cache)
 
 	// Start server in the context (blocking call)
@@ -198,8 +179,10 @@ func startServer(ctx context.Context, cache *cache.PodCache) error {
 		// Don't treat context cancellation as an error
 		if err == context.Canceled {
 			fmt.Println("Server stopped gracefully")
+			slog.Error("TCP Server", "phase", "gracefully stopping")
 			return nil
 		}
+		slog.Error("TCP Server", "phase", "server error", "err", err)
 		return fmt.Errorf("server error: %w", err)
 	}
 
