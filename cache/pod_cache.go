@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"mi0772/podcache/disk"
+	"mi0772/podcache/hash"
 	"mi0772/podcache/ram"
 )
 
@@ -84,14 +85,30 @@ func (c *PodCache) Get(key string) ([]byte, error) {
 	return v, nil
 }
 
-func partitionIndex(key string, partition_count uint8) uint8 {
-	return uint8(hash(key) % uint32(partition_count))
+func (c *PodCache) Evict(key string) bool {
+	partitionIndex := partitionIndex(key, c.partition_count)
+
+	if _, found := c.partitions[partitionIndex].Get(key); found {
+		return c.partitions[partitionIndex].Evict(key)
+	}
+
+	log.Printf("ram.Get: key %s not found on partition %d, try looking into disk", key, partitionIndex)
+
+	_, found, err := c.disk_cache.Get(key)
+	if err != nil || !found {
+		log.Printf("disk.Get: key %s not found or error: %v", key, err)
+		return false
+	}
+
+	ok, err := c.disk_cache.Evict(key)
+	if err != nil {
+		log.Printf("disk.Evict error for key %s: %v", key, err)
+		return false
+	}
+
+	return ok
 }
 
-func hash(key string) uint32 {
-	var hash uint32 = 5381
-	for _, c := range []byte(key) {
-		hash = ((hash << 5) + hash) + uint32(c)
-	}
-	return hash
+func partitionIndex(key string, partition_count uint8) uint8 {
+	return uint8(hash.CalculateDJB2(key) % uint32(partition_count))
 }

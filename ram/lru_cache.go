@@ -31,7 +31,7 @@ var (
 
 func New[T any](maxCapacity uint64) *Cache[T] {
 	log.Printf("creating ram cache with max capacity %d", maxCapacity)
-	bucketsSize := estimateBucketSize(maxCapacity)
+	bucketsSize := 100
 	buckets := make(map[string]*Node[T], bucketsSize)
 	log.Printf("esimated bucket size %d ", bucketsSize)
 
@@ -43,6 +43,18 @@ func New[T any](maxCapacity uint64) *Cache[T] {
 		CurrentCapacity: 0,
 		mutex:           sync.RWMutex{},
 	}
+}
+
+func (c *Cache[T]) Shrink() {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+
+	nm := make(map[string]*Node[T], len(c.buckets))
+	for k, v := range c.buckets {
+		nm[k] = v
+	}
+	c.buckets = nm
+
 }
 
 func (c *Cache[T]) Get(key string) (T, bool) {
@@ -179,16 +191,4 @@ func (c *Cache[T]) addToHead(node *Node[T]) {
 	node.Next = c.Head
 	c.Head.Previous = node
 	c.Head = node
-}
-
-func estimateBucketSize(maxCapacity uint64) int {
-	estimated_elements := maxCapacity / 1024
-	target_size := int(float64(estimated_elements) / 0.75)
-
-	size := 16
-	for size < target_size && size < 65536 { // max 64K
-		size <<= 1
-	}
-
-	return size
 }

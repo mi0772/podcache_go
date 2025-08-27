@@ -23,6 +23,7 @@ const (
 	RESP_UNKNOW RespCommand = "UNKNOW"
 	RESP_INCR   RespCommand = "INCR"
 	RESP_UNLINK RespCommand = "UNLINK"
+	RESP_INCRBY RespCommand = "INCRBY"
 )
 
 type RespCommand string
@@ -45,14 +46,16 @@ func convert(r string) RespCommand {
 		return RESP_INCR
 	case "UNLINK":
 		return RESP_UNLINK
+	case "INCRBY":
+		return RESP_INCRBY
 	default:
 		return RESP_UNKNOW
 	}
 }
 
 type Command struct {
-	command   RespCommand
-	arguments []string
+	Type      RespCommand
+	Arguments []string
 }
 
 type CommandBuffer struct {
@@ -88,9 +91,9 @@ func Parse(command string) (*Command, error) {
 			return nil, err
 		}
 		if i == 0 {
-			result.command = convert(strings.ToUpper(s))
+			result.Type = convert(strings.ToUpper(s))
 		} else {
-			result.arguments = append(result.arguments, s)
+			result.Arguments = append(result.Arguments, s)
 		}
 	}
 
