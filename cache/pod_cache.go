@@ -16,6 +16,46 @@ type PodCache struct {
 	capacity        uint64
 }
 
+type PodCacheStats struct {
+	Capacity   uint64
+	Used       uint64
+	Free       uint64
+	Partitions []PartitionStats
+	Disk       DiskStats
+}
+
+type PartitionStats struct {
+	Entries  uint64
+	Capacity uint64
+	Used     uint64
+	Free     uint64
+}
+
+type DiskStats struct {
+	Entries uint64
+	Used    uint64
+}
+
+func (pc *PodCache) Stats() PodCacheStats {
+	result := PodCacheStats{}
+	result.Capacity = pc.capacity
+	var totalUsed uint64 = 0
+
+	for _, partition := range pc.partitions {
+		pstat := PartitionStats{}
+		pstat.Entries = uint64(partition.ItemCount())
+		pstat.Used = partition.CurrentCapacity
+		pstat.Free = partition.MaxCapacity - partition.CurrentCapacity
+		totalUsed += pstat.Used
+		result.Partitions = append(result.Partitions, pstat)
+	}
+	result.Disk.Used = pc.disk_cache.Capacity
+	result.Disk.Entries = pc.disk_cache.Entries_count
+	result.Used = totalUsed
+	result.Free = result.Capacity - totalUsed
+	return result
+}
+
 func NewPodCache(partitions uint8, capacity uint64) (*PodCache, error) {
 	partition_capacity := capacity / uint64(partitions)
 

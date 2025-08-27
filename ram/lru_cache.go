@@ -45,6 +45,12 @@ func New[T any](maxCapacity uint64) *Cache[T] {
 	}
 }
 
+func (c *Cache[T]) ItemCount() int {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	return len(c.buckets)
+}
+
 func (c *Cache[T]) Shrink() {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()

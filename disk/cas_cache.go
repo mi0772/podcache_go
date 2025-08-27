@@ -11,8 +11,8 @@ import (
 type Cache struct {
 	entries       map[string]bool
 	basePath      string
-	entries_count uint64
-	capacity      uint64
+	Entries_count uint64
+	Capacity      uint64
 }
 
 func NewCache() *Cache {
@@ -29,8 +29,8 @@ func NewCache() *Cache {
 
 	return &Cache{
 		basePath:      finalPath,
-		entries_count: 0,
-		capacity:      0,
+		Entries_count: 0,
+		Capacity:      0,
 		entries:       make(map[string]bool, 0),
 	}
 }
@@ -80,8 +80,8 @@ func (c *Cache) Put(key string, value []byte) error {
 	}
 
 	c.entries[key] = true
-	c.entries_count++
-	c.capacity += uint64(len(value))
+	c.Entries_count++
+	c.Capacity += uint64(len(value))
 
 	return nil
 }

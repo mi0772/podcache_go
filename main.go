@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"mi0772/podcache/cache"
+	"mi0772/podcache/logger"
+	"mi0772/podcache/server"
 	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
 	"time"
-
-	cache2 "mi0772/podcache/cache"
-	"mi0772/podcache/server"
 )
 
 const (
@@ -21,16 +21,18 @@ const (
 	ShutdownTimeoutSecs = 10
 )
 
+var ticker *time.Ticker
+var podcache *cache.PodCache
+
 type CacheConfiguration struct {
 	partition uint8
 	capacity  uint64
 }
 
 func main() {
-	// Setup logging
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	fmt.Printf("PodCache v%s\n", AppVersion)
+	logger.LogLevel = logger.LOG_INFO
+	logger.Write(logger.LOG_INFO, "Podcache GO Version starting up...")
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -38,6 +40,8 @@ func main() {
 
 	// Setup graceful shutdown
 	setupGracefulShutdown(cancel)
+
+	setupTickerCacheStatistics()
 
 	// Read configuration
 	config, err := readCacheConfiguration()
@@ -48,17 +52,53 @@ func main() {
 	displayConfiguration(config)
 
 	// Initialize cache
-	cache, err := initializeCache(config)
+	podcache, err = initializeCache(config)
 	if err != nil {
 		log.Fatalf("Failed to initialize cache: %v", err)
 	}
 
 	// Start server
-	if err := startServer(ctx, cache); err != nil {
+	if err := startServer(ctx, podcache); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
 
 	fmt.Println("PodCache server shutdown complete")
+}
+
+func setupTickerCacheStatistics() {
+	ticker = time.NewTicker(60 * time.Second)
+	done := make(chan bool)
+
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case _ = <-ticker.C:
+				if podcache != nil {
+					log.Printf("*** CACHE STATS ***")
+					var stat = podcache.Stats()
+
+					log.Printf("* Capacity : %d", stat.Capacity)
+					log.Printf("* Used : %d", stat.Used)
+					log.Printf("* Free : %d", stat.Free)
+					log.Printf(" * Disk cache entries : %d", stat.Disk.Entries)
+					log.Printf(" * Disk cache used : %d", stat.Disk.Used)
+					for i, p := range stat.Partitions {
+						log.Printf("* Partition %d", i)
+						log.Printf("  * Capacity : %d", p.Capacity)
+						log.Printf("  * Used : %d", p.Used)
+						log.Printf("  * Free : %d", p.Free)
+						log.Printf("  * Entries : %d", p.Entries)
+					}
+					log.Printf("*** END CACHE STATS ***")
+
+				}
+
+			}
+		}
+	}()
+
 }
 
 func setupGracefulShutdown(cancel context.CancelFunc) {
@@ -66,7 +106,9 @@ func setupGracefulShutdown(cancel context.CancelFunc) {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 
 	go func() {
+
 		sig := <-sigChan
+		ticker.Stop()
 		log.Printf("Received signal %v, initiating graceful shutdown...", sig)
 		cancel()
 
@@ -134,10 +176,10 @@ func displayConfiguration(config *CacheConfiguration) {
 	fmt.Println()
 }
 
-func initializeCache(config *CacheConfiguration) (*cache2.PodCache, error) {
+func initializeCache(config *CacheConfiguration) (*cache.PodCache, error) {
 	fmt.Println("Initializing cache layer...")
 
-	cache, err := cache2.NewPodCache(config.partition, config.capacity)
+	cache, err := cache.NewPodCache(config.partition, config.capacity)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +188,7 @@ func initializeCache(config *CacheConfiguration) (*cache2.PodCache, error) {
 	return cache, nil
 }
 
-func startServer(ctx context.Context, cache *cache2.PodCache) error {
+func startServer(ctx context.Context, cache *cache.PodCache) error {
 	fmt.Println("Starting PodCache server...")
 
 	server := server.NewPodCacheServer(cache)
