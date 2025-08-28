@@ -2,6 +2,7 @@ package ram
 
 import (
 	"errors"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -61,26 +62,32 @@ func (c *Cache[T]) Shrink() {
 }
 
 func (c *Cache[T]) Get(key string) (T, bool) {
+	slog.Debug("Memory Cache", "operation", "get", "key", key)
 	var zero T
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
 	v, ok := c.buckets[key]
 	if !ok {
+		slog.Debug("Memory Cache", "operation", "get", "key", key, "result", "not found")
 		return zero, false
 	}
 
+	slog.Debug("Memory Cache", "operation", "get", "key", key, "result", "found")
 	// prima di restituire, sposto il nodo trovato come head
 	c.moveToHead(v)
 	return v.Value, true
 }
 
 func (c *Cache[T]) Evict(key string) bool {
+	slog.Debug("Memory Cache", "operation", "evict", "key", key)
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
 	v, ok := c.buckets[key]
 	if !ok {
+
+		slog.Debug("Memory Cache", "operation", "evict", "key", key, "result", "not found")
 		return false
 	}
 
@@ -103,10 +110,12 @@ func (c *Cache[T]) Evict(key string) bool {
 
 	delete(c.buckets, key)
 	c.CurrentCapacity -= v.ValueSize
+	slog.Debug("Memory Cache", "operation", "evict", "key", key, "result", "evicted")
 	return true
 }
 
 func (c *Cache[T]) Put(key string, value T, valueSize uint64) error {
+	slog.Debug("Memory Cache", "operation", "set", "key", key, "value_size", valueSize)
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 
@@ -122,6 +131,7 @@ func (c *Cache[T]) Put(key string, value T, valueSize uint64) error {
 		v.InsertionTime = time.Now()
 		v.Value = value
 		v.ValueSize = valueSize
+		slog.Debug("Memory Cache", "operation", "set", "key", key, "result", "updated")
 		c.moveToHead(v)
 	} else {
 		// Elemento nuovo - controlla se c'è spazio
@@ -140,6 +150,7 @@ func (c *Cache[T]) Put(key string, value T, valueSize uint64) error {
 		c.buckets[key] = v
 		c.CurrentCapacity += valueSize
 		c.addToHead(v)
+		slog.Debug("Memory Cache", "operation", "set", "key", key, "result", "inserted")
 	}
 	return nil
 }

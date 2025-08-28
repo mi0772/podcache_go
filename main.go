@@ -30,6 +30,10 @@ type CacheConfiguration struct {
 }
 
 func main() {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelDebug, // <-- questo abilita i debug
+	}))
+	slog.SetDefault(logger)
 
 	slog.Info("Welcome to PodCache")
 	// Create context for graceful shutdown
@@ -64,7 +68,7 @@ func main() {
 }
 
 func setupTickerCacheStatistics() {
-	ticker = time.NewTicker(6 * time.Second)
+	ticker = time.NewTicker(60 * time.Second)
 	done := make(chan bool)
 
 	go func() {

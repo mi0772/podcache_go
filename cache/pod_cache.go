@@ -44,6 +44,7 @@ func (pc *PodCache) Stats() PodCacheStats {
 
 	for _, partition := range pc.partitions {
 		pstat := PartitionStats{}
+		pstat.Capacity = partition.MaxCapacity
 		pstat.Entries = uint64(partition.ItemCount())
 		pstat.Used = partition.CurrentCapacity
 		pstat.Free = partition.MaxCapacity - partition.CurrentCapacity
@@ -67,7 +68,7 @@ func NewPodCache(partitions uint8, capacity uint64) (*PodCache, error) {
 			panic("ram.New() returned nil")
 		}
 	}
-	slog.Info("Creating Cache", "partitions number", partitions, "partition capacity", capacity)
+	slog.Info("Creating Cache", "partitions number", partitions, "partition capacity", partition_capacity)
 
 	dc := disk.NewCache()
 
@@ -111,19 +112,16 @@ func (c *PodCache) Get(key string) ([]byte, error) {
 	partitionIndex := partitionIndex(key, c.partition_count)
 	v, found := c.partitions[partitionIndex].Get(key)
 	if !found {
-		log.Printf("ram.Get: key %s not found on partition %d , try looking into disk", key, partitionIndex)
 		v, found, err := c.disk_cache.Get(key)
 		if err != nil {
 			return nil, err
 		}
 		if !found {
-			log.Printf("ram.Get: key %s not found on disk", key)
 			return nil, nil
 		}
 
 		return v, nil
 	}
-	log.Printf("ram.Get: key %s found on partition %d", key, partitionIndex)
 	return v, nil
 }
 

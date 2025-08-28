@@ -1,7 +1,10 @@
 package resp
 
 import (
+	"bufio"
 	"errors"
+	"fmt"
+	"io"
 	"strconv"
 	"strings"
 )
@@ -62,6 +65,60 @@ type CommandBuffer struct {
 	data   []byte
 	pos    int
 	length int
+}
+
+func ParseFromReader(r *bufio.Reader) (*Command, error) {
+	// legge la prima riga, deve iniziare con '*'
+	line, err := r.ReadString('\n')
+	if err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil, ErrParseIncomplete
+		}
+		return nil, err
+	}
+
+	if len(line) == 0 || line[0] != '*' {
+		return nil, ErrParseSyntax
+	}
+
+	// numero di elementi nell'array RESP
+	numElements, err := strconv.Atoi(strings.TrimSpace(line[1:]))
+	if err != nil {
+		return nil, fmt.Errorf("invalid array size: %w", err)
+	}
+
+	result := &Command{}
+
+	for i := 0; i < numElements; i++ {
+		// legge la riga con la lunghezza della bulk string
+		lenLine, err := r.ReadString('\n')
+		if err != nil {
+			return nil, ErrParseIncomplete
+		}
+		if len(lenLine) == 0 || lenLine[0] != '$' {
+			return nil, ErrParseSyntax
+		}
+
+		bulkLen, err := strconv.Atoi(strings.TrimSpace(lenLine[1:]))
+		if err != nil {
+			return nil, fmt.Errorf("invalid bulk length: %w", err)
+		}
+
+		buf := make([]byte, bulkLen+2)
+		if _, err := io.ReadFull(r, buf); err != nil {
+			return nil, ErrParseIncomplete
+		}
+
+		str := string(buf[:bulkLen])
+
+		if i == 0 {
+			result.Type = convert(strings.ToUpper(str))
+		} else {
+			result.Arguments = append(result.Arguments, str)
+		}
+	}
+
+	return result, nil
 }
 
 func Parse(command string) (*Command, error) {

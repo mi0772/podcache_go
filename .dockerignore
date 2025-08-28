@@ -1,0 +1,17 @@
+# Dockerfile
+Dockerfile
+
+# Cache data
+.cas/
+
+# Binaries
+podcache
+*.exe
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db

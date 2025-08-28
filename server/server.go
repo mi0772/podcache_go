@@ -16,6 +16,8 @@ import (
 	"time"
 )
 
+const MAX_COMMAND_SIZE = 512 * 1024 * 1024
+
 var (
 	ErrMissingKey     = errors.New("missing key")
 	ErrMissingValue   = errors.New("missing key or value")
@@ -107,13 +109,10 @@ func (s *PodCacheServer) handleConnection(conn net.Conn) {
 var errQuit = errors.New("client quit")
 
 func (s *PodCacheServer) readCommand(client *Client) (*resp.Command, error) {
-	buffer := make([]byte, 4096)
-	n, err := client.reader.Read(buffer)
-	if err != nil {
-		return nil, err
-	}
 
-	return resp.Parse(string(buffer[:n]))
+	reader := bufio.NewReader(client.reader)
+	return resp.ParseFromReader(reader)
+
 }
 
 func (s *PodCacheServer) executeCommand(client *Client, cmd *resp.Command) error {
