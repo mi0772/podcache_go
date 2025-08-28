@@ -98,8 +98,8 @@ func (c *PodCache) Put(key string, value []byte) error {
 				return fmt.Errorf("failed to save to disk cache: %w", err)
 			}
 
-			if err := partition.Evict(tailNode.Key); err {
-				return fmt.Errorf("Eviction of tail node failed, this is strange: %w", err)
+			if !partition.Evict(tailNode.Key) {
+				return fmt.Errorf("Eviction of tail node failed, this is strange")
 			}
 		} else {
 			sentinelError = nil

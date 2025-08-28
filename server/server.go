@@ -299,10 +299,10 @@ func (c *Client) sendNullBulkString() error {
 
 func getPort() int {
 	if portStr, exists := os.LookupEnv("PODCACHE_PORT"); exists {
-		slog.Debug("PODCACHE_PORT found in environment: %s\n", portStr)
+		slog.Debug("PODCACHE_PORT found in environment", "port", portStr)
 		port, err := strconv.Atoi(portStr)
 		if err != nil {
-			slog.Error("PODCACHE_PORT must be a valid number: %v", err)
+			slog.Error("PODCACHE_PORT must be a valid number", "error", err)
 			os.Exit(1)
 		}
 		return port
