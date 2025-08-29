@@ -58,13 +58,13 @@ func (pc *PodCache) Stats() PodCacheStats {
 		totalUsed += pstat.Used
 		pstat.Hits = partition.Hits
 		pstat.Misses = partition.Misses
-		
+
 		// Calculate hit ratio
 		total := pstat.Hits + pstat.Misses
 		if total > 0 {
 			pstat.HitRatio = float64(pstat.Hits) / float64(total)
 		}
-		
+
 		result.Partitions = append(result.Partitions, pstat)
 	}
 	result.Disk.Used = pc.disk_cache.Capacity
