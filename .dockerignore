@@ -15,3 +15,10 @@ podcache
 # OS files
 .DS_Store
 Thumbs.db
+
+# Documentation
+*.md
+LOGGING_OPTIMIZATION.md
+
+# Examples
+examples/
