@@ -3,11 +3,11 @@ package cache
 import (
 	"errors"
 	"fmt"
-	"log"
-	"log/slog"
 	"mi0772/podcache/disk"
 	"mi0772/podcache/hash"
+	"mi0772/podcache/logging"
 	"mi0772/podcache/ram"
+	"time"
 )
 
 type PodCache struct {
@@ -15,30 +15,37 @@ type PodCache struct {
 	disk_cache      *disk.Cache
 	partition_count uint8
 	capacity        uint64
+	logger          logging.Logger
 }
 
 type PodCacheStats struct {
-	Capacity   uint64
-	Used       uint64
-	Free       uint64
-	Partitions []PartitionStats
-	Disk       DiskStats
+	Timestamp  time.Time        `json:"timestamp"`
+	Capacity   uint64           `json:"capacity"`
+	Used       uint64           `json:"used"`
+	Free       uint64           `json:"free"`
+	Partitions []PartitionStats `json:"partitions"`
+	Disk       DiskStats        `json:"disk"`
 }
 
 type PartitionStats struct {
-	Entries  uint64
-	Capacity uint64
-	Used     uint64
-	Free     uint64
+	Entries  uint64  `json:"entries"`
+	Capacity uint64  `json:"capacity"`
+	Used     uint64  `json:"used"`
+	Free     uint64  `json:"free"`
+	Hits     uint64  `json:"hits"`
+	Misses   uint64  `json:"misses"`
+	HitRatio float64 `json:"hit_ratio"`
 }
 
 type DiskStats struct {
-	Entries uint64
-	Used    uint64
+	Entries uint64 `json:"entries"`
+	Used    uint64 `json:"used"`
 }
 
 func (pc *PodCache) Stats() PodCacheStats {
-	result := PodCacheStats{}
+	result := PodCacheStats{
+		Timestamp: time.Now(),
+	}
 	result.Capacity = pc.capacity
 	var totalUsed uint64 = 0
 
@@ -49,6 +56,15 @@ func (pc *PodCache) Stats() PodCacheStats {
 		pstat.Used = partition.CurrentCapacity
 		pstat.Free = partition.MaxCapacity - partition.CurrentCapacity
 		totalUsed += pstat.Used
+		pstat.Hits = partition.Hits
+		pstat.Misses = partition.Misses
+		
+		// Calculate hit ratio
+		total := pstat.Hits + pstat.Misses
+		if total > 0 {
+			pstat.HitRatio = float64(pstat.Hits) / float64(total)
+		}
+		
 		result.Partitions = append(result.Partitions, pstat)
 	}
 	result.Disk.Used = pc.disk_cache.Capacity
@@ -58,7 +74,7 @@ func (pc *PodCache) Stats() PodCacheStats {
 	return result
 }
 
-func NewPodCache(partitions uint8, capacity uint64) (*PodCache, error) {
+func NewPodCache(partitions uint8, capacity uint64, logger logging.Logger) (*PodCache, error) {
 	partition_capacity := capacity / uint64(partitions)
 
 	p := make([]*ram.Cache[[]byte], int(partitions))
@@ -68,7 +84,7 @@ func NewPodCache(partitions uint8, capacity uint64) (*PodCache, error) {
 			panic("ram.New() returned nil")
 		}
 	}
-	slog.Info("Creating Cache", "partitions number", partitions, "partition capacity", partition_capacity)
+	logger.Info("Creating Cache", "partitions_number", partitions, "partition_capacity", partition_capacity)
 
 	dc := disk.NewCache()
 
@@ -77,6 +93,7 @@ func NewPodCache(partitions uint8, capacity uint64) (*PodCache, error) {
 		disk_cache:      dc,
 		capacity:        capacity,
 		partition_count: partitions,
+		logger:          logger,
 	}, nil
 }
 
@@ -89,9 +106,11 @@ func (c *PodCache) Put(key string, value []byte) error {
 		err := partition.Put(key, value, uint64(len(value)))
 		if err != nil && errors.Is(err, ram.ErrMemoryFull) {
 			tailNode := partition.Tail
-			log.Printf("Evicting key %s to disk due to memory pressure, %d bytes left on partition", tailNode.Key, partition.MaxCapacity-partition.CurrentCapacity)
+			var m = fmt.Sprintf("Evicting key %s to disk due to memory pressure, %d bytes left on partition", tailNode.Key, partition.MaxCapacity-partition.CurrentCapacity)
+			c.logger.Debug("Cache proxy", "operation", "put", "event", m)
+
 			if tailNode == nil {
-				return errors.New("ram.Tail() returned nil, memory full but tail is empty, do you create a cache with 0 bytes of capacity ?")
+				return errors.New("ram.Tail() returned nil, memory full but tail is empty, do you create a cache with 0 bytes of capacity ")
 			}
 			//salvo su disco e poi faccio evict dalla memoria
 			if err := c.disk_cache.Put(tailNode.Key, tailNode.Value); err != nil {
@@ -99,7 +118,7 @@ func (c *PodCache) Put(key string, value []byte) error {
 			}
 
 			if !partition.Evict(tailNode.Key) {
-				return fmt.Errorf("Eviction of tail node failed, this is strange")
+				return fmt.Errorf("eviction of tail node failed, this is abnormal condition")
 			}
 		} else {
 			sentinelError = nil
@@ -132,21 +151,33 @@ func (c *PodCache) Evict(key string) bool {
 		return c.partitions[partitionIndex].Evict(key)
 	}
 
-	log.Printf("ram.Get: key %s not found on partition %d, try looking into disk", key, partitionIndex)
+	m := fmt.Sprintf("ram.Get: key %s not found on partition %d, try looking into disk", key, partitionIndex)
+	c.logger.Debug("Cache proxy", "operation", "evict", "event", m)
 
 	_, found, err := c.disk_cache.Get(key)
 	if err != nil || !found {
-		log.Printf("disk.Get: key %s not found or error: %v", key, err)
+
+		c.logger.Debug("Cache proxy", "operation", "evict", "event", fmt.Sprintf("disk.Get: key %s not found or error: %v", key, err))
 		return false
 	}
 
 	ok, err := c.disk_cache.Evict(key)
 	if err != nil {
-		log.Printf("disk.Evict error for key %s: %v", key, err)
+
+		c.logger.Debug("Cache proxy", "operation", "evict", "event", fmt.Sprintf("disk.Evict error for key %s: %v", key, err))
 		return false
 	}
 
 	return ok
+}
+
+func (pc *PodCache) Shrink() {
+	pc.logger.Info("Cache shrink operation", "status", "initiated")
+	for i, partition := range pc.partitions {
+		pc.logger.Debug("Cache shrink", "partition", i)
+		partition.Shrink()
+	}
+	pc.logger.Info("Cache shrink operation", "status", "completed")
 }
 
 func partitionIndex(key string, partition_count uint8) uint8 {

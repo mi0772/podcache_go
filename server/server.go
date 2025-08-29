@@ -5,9 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
-	"log/slog"
 	"mi0772/podcache/cache"
+	"mi0772/podcache/logging"
 	"mi0772/podcache/resp"
 	"net"
 	"os"
@@ -29,28 +28,31 @@ type PodCacheServer struct {
 	port    int
 	cache   *cache.PodCache
 	running bool
+	logger  logging.Logger
 }
 
-func NewPodCacheServer(cache *cache.PodCache) *PodCacheServer {
-	return &PodCacheServer{
-		cache: cache,
-		port:  getPort(),
+func NewPodCacheServer(cache *cache.PodCache, logger logging.Logger) *PodCacheServer {
+	server := &PodCacheServer{
+		cache:  cache,
+		logger: logger,
 	}
+	server.port = getPort(logger)
+	return server
 }
 
 func (s *PodCacheServer) Start(ctx context.Context) error {
-	slog.Info("TCP Server", "phase", "starting")
+	logging.LogServerPhase(s.logger, logging.OpStarting)
 
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", s.port))
 	if err != nil {
-		slog.Error("TCP Server", "phase", "starting", "err", err)
-		log.Fatal("failed to start server")
+		logging.LogServerError(s.logger, logging.OpStarting, err)
+		s.logger.Fatal("failed to start server")
 	}
 	defer listener.Close()
 
 	s.running = true
 
-	slog.Info("TCP Server", "phase", "started", "port", s.port)
+	logging.LogServerPhase(s.logger, logging.OpStarted, "port", s.port)
 	// Graceful shutdown
 	go func() {
 		<-ctx.Done()
@@ -62,7 +64,7 @@ func (s *PodCacheServer) Start(ctx context.Context) error {
 		conn, err := listener.Accept()
 		if err != nil {
 			if s.running {
-				log.Printf("error accepting connection: %v", err)
+				s.logger.Error("Connection error", "error", err)
 			}
 			continue
 		}
@@ -91,7 +93,7 @@ func (s *PodCacheServer) handleConnection(conn net.Conn) {
 		command, err := s.readCommand(client)
 		if err != nil {
 			if !isConnectionClosed(err) {
-				log.Printf("error reading command: %v", err)
+				s.logger.Error("Command read error", "error", err)
 				client.sendError("Invalid command")
 			}
 			return
@@ -101,7 +103,7 @@ func (s *PodCacheServer) handleConnection(conn net.Conn) {
 			if errors.Is(err, errQuit) {
 				return
 			}
-			log.Printf("error executing command: %v", err)
+			s.logger.Error("Command execution error", "error", err)
 		}
 	}
 }
@@ -297,12 +299,12 @@ func (c *Client) sendNullBulkString() error {
 	return c.writer.Flush()
 }
 
-func getPort() int {
+func getPort(logger logging.Logger) int {
 	if portStr, exists := os.LookupEnv("PODCACHE_PORT"); exists {
-		slog.Debug("PODCACHE_PORT found in environment", "port", portStr)
+		logger.Debug("PODCACHE_PORT found in environment", "port", portStr)
 		port, err := strconv.Atoi(portStr)
 		if err != nil {
-			slog.Error("PODCACHE_PORT must be a valid number", "error", err)
+			logger.Error("PODCACHE_PORT must be a valid number", "error", err)
 			os.Exit(1)
 		}
 		return port
